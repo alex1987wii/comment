@@ -1,0 +1,38 @@
+SoftWare name:comment
+Usage:
+	comment [options] [File]
+Options:
+	--help
+	-f[ao],--force=[append/override]
+	-L language(c is default)
+	-c import_char,such as @ ! etc..
+	-l Linelist
+	-d comment on declare
+	-D comment on definition(default on)
+	-F Functionlist(split by ,)
+	-o output,outputfilename
+	-i Flielist
+
+
+1. File comment
+
+a. if file is a header file,you should add header protector
+b. comment must contain these sections:
+Copyright:
+Author:
+Date:
+Version:
+History:
+Description:
+
+2. Function comment
+Function Name:
+Return Vaule:
+Parameters:
+		
+Description:
+
+History:
+Modify Date:
+Author:
+
