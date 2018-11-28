@@ -13,7 +13,7 @@ void usage(void)
 {
 	printf("Usage:comment [OPTIONS] File\n");
 	printf("OPTIONS:\n");
-	printf("        -h help\n");
+	printf("        -h file comment.\n");
 	printf("        -f=[ao],append or override.\n");
 	printf("        -o Filename,output filename.\n");
 	printf("        -F Functionlist(split by comma)\n");
@@ -33,14 +33,13 @@ int main(int argc,char *argv[])
 	if(argc < 2)
 		usage();
 	unsigned int opt = 0;
-	const char *args_for_f = "=a";
 	const char *args_for_o = NULL;
 	const char *args_for_F = "";
 	const char *args_for_l = "";
 	const char *args_for_c = "=";
 	const char *args_for_L = "=c";
 	int ch;
-	while((ch = getopt(argc,argv,":hf::io:F:l:c:sdDuL::")) != -1)
+	while((ch = getopt(argc,argv,":hfio:F:l:c:sdDuL::")) != -1)
 	{
 		switch(ch)
 		{
@@ -49,7 +48,6 @@ int main(int argc,char *argv[])
 				break;
 			case 'f':
 				opt |= OPT_f;
-				args_for_f = optarg;
 				break;
 			case 'i':
 				opt |= OPT_i;
@@ -95,8 +93,6 @@ int main(int argc,char *argv[])
 
 
 #ifndef NDEBUG
-    printf("args_for_f = %s\n",args_for_f);
-    printf("args_for_o = %s\n",args_for_o);
     printf("args_for_F = %s\n",args_for_F);
     printf("args_for_l = %s\n",args_for_l);
     printf("args_for_c = %s\n",args_for_c);
@@ -115,22 +111,16 @@ int main(int argc,char *argv[])
     lang_t lang = LANG_C;
     char comment_char = 0;
     
-    if(opt & OPT_h)
-      usage();
     if((opt & OPT_u) == 0)
       opt |= DEFAULT_OPT;
 
-    if((opt & OPT_f) && args_for_f){
-        if(!strcmp(args_for_f,"=o"))
-          opt |= OPT_FORCE_O;
-        else if(strcmp(args_for_f,"=a"))
-          usage();
-    }
     if((opt & OPT_c) && args_for_c)
+	{
         if(*args_for_c == '=')
           comment_char = *(args_for_c+1);
         else
           comment_char = *args_for_c;
+	}
 
     if((opt & OPT_L) && args_for_L){
         if(!strcmp(args_for_L,"=java") || !strcmp(args_for_L,"java"))
@@ -178,6 +168,7 @@ int main(int argc,char *argv[])
     /*process file one by one*/
     for(i = 0; i < nr_file; ++i)
     {
+		char buff[MAX_COMMENT_LEN];
           
         FILE *fpin = fopen(argv[optind+i],"r");
         if(fpin == NULL)
@@ -193,6 +184,48 @@ int main(int argc,char *argv[])
             fclose(fpin);
             break;
         }
+
+		if(get_file_comment(argv[optind+i],buff,MAX_COMMENT_LEN)){
+			/*error occur*/
+			printf("%s can't get comment!\n");
+			continue;
+		}
+
+		char buff[MAX_COMMENT_LEN];
+		int comment_index = 0;
+		if((opt & OPT_h)){
+			while(true)
+			{
+				if(fgets(buff,MAX_COMMENT_LEN,fpin) == NULL && !feof(fpin))
+				{
+						clearerr(fpin);
+						fclose(fpin);
+						goto CONTINUE;
+				}
+#warning "bug here"
+				/*notice that buff maybe not end with '\n' or '\r'*/
+				comment_index = is_commend_line(buff,0);
+				if(comment_index != -1)/*not empty line*/
+					break;				
+
+			}
+			/*write file comment into tmpfile*/
+			if((opt & OPT_f) || comment_index == -2)
+			{
+				fwrite(buff,strlen(buff),1,fptmp);
+
+#ifndef NDEBUG
+				printf("%s's comment had wroten into tmpfile!\n");
+#endif
+			}
+#warning "just work here"	
+			if(comment_index != -2 && buff[comment_index] == '*')
+			{
+				/*set file pointer jump over comment*/
+
+			}
+			
+		}
         fclose(fpin);
         FILE *fpout;
         if((opt & OPT_o) && args_for_o)
@@ -212,9 +245,77 @@ int main(int argc,char *argv[])
             }
         }
         /*copy tmpfile to destination*/
+CONTINUE:
+		continue;
 
     }
 	return 0;
+}
+/*must end with '\n' or '\r'
+direction :0 forward, non-zero backward
+  not comment line return -1 empty line, -2 not empty not comment line
+  comment line return index of nextchar '/' or '*'
+  */
+static inline int is_comment_line(const char *line,int direction)
+{
+	const char *str = line;
+	if(str == NULL)
+		return -1;
+	while(*str != '\n' || *str != '\r')
+	{
+		if(*str == '/')
+		{
+			if(*(str+1) == '/')
+			{
+				return str-line+1;
+			}
+			else if(direction == 0 && *(str+1) == '*')
+				return str-line+1;
+
+		}
+		else if(direction && *str == '*' && *(str+1) == '/')
+			return str-line;
+		else if(!isspace(*str))
+			return -2;
+		++str;
+	}
+	return -1;
+
+}
+static inline int is_first_comment(const char *str,int n)
+{
+	if(str == NULL)
+		return 0;
+	int i = 0;
+	while(*(str+i) && *(str+i) != '/' && i < n )
+	{
+		if(!isspace(*(str+i)))
+			return 0;
+		++i;
+	}
+	if(i == n || *(str+i) == 0)
+		return 0;
+	if(*(str+i+1) != '*')
+		return 0;
+	return i+1;
+
+}
+static inline int is_last_comment(const char *str,int n)
+{
+	if(str == NULL)
+		return 0;
+	int i = 0;
+	while(*(str-i) && *(str-i) != '/' && i < n)
+	{
+		if(!isspace(*(str-i)))
+			return 0;
+		++i;
+	}
+	if(i == n && *(str-i) == 0)
+		return 0;
+	if(*(str-i-1) != '*')
+		return 0;
+	return i+1;
 }
 static inline const char *get_file_suffix(const char *file)
 {
