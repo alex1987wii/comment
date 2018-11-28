@@ -49,5 +49,16 @@ typedef struct _func_desc_t{
 }func_desc_t;
 struct _func_desc_t *get_func_desc(const char *func);
 
-
+typedef enum {
+	OPT_h = 0x00000001,
+	OPT_f = 0x00000002,
+	OPT_L = 0x00000004,
+	OPT_c = 0x00000008,
+	OPT_l = 0x00000010,
+	OPT_d = 0x00000020,
+	OPT_D = 0x00000040,
+	OPT_F = 0x00000080,
+	OPT_o = 0x00000100,
+	OPT_i = 0x00000200,
+};
 #endif
