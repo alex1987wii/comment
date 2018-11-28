@@ -23,12 +23,15 @@
 
 #define MAX_COMMENT_LEN		2048
 #define MAX_NAME_LEN		256
+#define MAX_LIST            64
+
+#define TMPFILE     ".tmp.swp"
 
 typedef enum {
 	LANG_C,
 	LANG_CPP,
 	LANG_JAVA,
-	LANG_PHONY
+	LANG_PYTHON
 }lang_t;
 
 typedef struct _file_desc_t{
@@ -60,5 +63,10 @@ typedef enum {
 	OPT_F = 0x00000080,
 	OPT_o = 0x00000100,
 	OPT_i = 0x00000200,
-};
+	OPT_s = 0x00000400,
+    OPT_u = 0x00000800,
+    OPT_MAX=OPT_u,
+}OPT;
+#define DEFAULT_OPT     (OPT_D | OPT_s)
+#define OPT_FORCE_O     (OPT_MAX<<1)
 #endif
