@@ -353,3 +353,200 @@ static inline int strip_str_by_comma(char *str,int argc,char *argv[])
     }
     return count;
 }
+/*
+ * return value: the size of read,which in valid_buf
+ *      -1,if parse error
+ *      -2,if buff end
+ *      -3,if file end
+ */
+int get_valid_line(const char *buff,int bufsize,int start_pos,char *valid_buf,int *valid_buf_pos)
+{
+    int pos = start_pos;
+    static char last_char = '\0';
+    while(pos < bufsize)
+    {
+        switch(buff[pos])
+        {
+            case '(':
+                push(stack,BRACKT1_LEFT);
+                valid_buf[*valid_buf_pos++] = buff[pos];
+                break;
+            case '[':
+                push(stack,BRACKT2_LEFT);
+                valid_buf[*valid_buf_pos++] = buff[pos];
+                break;
+
+            case '{':
+                push(stack,BRACKT3_LEFT);
+                valid_buf[*valid_buf_pos++] = buff[pos];
+                break;
+
+            case ')':
+                if(pop(stack) != BRACKT1_LEFT)
+                  return -1;
+                valid_buf[*valid_buf_pos++] = buff[pos];
+                break;
+            case ']':
+                if(pop(stack) != BRACKT2_LEFT)
+                  return -1;
+                valid_buf[*valid_buf_pos++] = buff[pos];
+                break;
+            case '}':
+                if(pop(stack) != BRACKT3_LEFT)
+                  return -1;
+                valid_buf[*valid_buf_pos++] = buff[pos];
+                break;
+            case '/':
+                valid_buf[*valid_buf_pos++] = buff[pos];
+                if(last_char == '*')
+                {
+                    if(pop(stack) != COMMENT_LEFT)
+                      return -1;
+                }
+
+                break;
+            case '*':
+                valid_buf[*valid_buf_pos++] = buff[pos];
+                if(last_char == '/')
+                {
+                    push(stack,COMMENT_LEFT);
+                }
+                break;
+
+            case '\r':
+                break;
+            case '\n':
+                /*if need to write into valid_buf?*/
+                if(stack->length == 0)
+                {
+                    valid_buf[*valid_buf_pos++] = buff[pos];
+                    valid_buf[*valid_buf_pos++] = '\0';
+                    return pos;
+                }
+                else if(stack->elem[0] != BRACKT1_LEFT)
+                {
+                    *valid_buf_pos = 0;
+                    valid_buf[0] = 0;
+                }
+                /*delete '\\' before '\n'*/
+                if(*valid_buf_pos > 0 && last_char == '\\')
+                  --*valid_buf_pos;
+                break;
+            case '\0':
+                if(stack->length !=0)
+                  return -1;
+                valid_buf[*valid_buf_pos++] = buff[pos];
+                last_char = 0;
+                return -3;
+            default:
+                valid_buf[*valid_buf_pos++] = buff[pos];
+                break;
+
+        }
+
+        last_char = buff[pos];
+        if(*valid_buf_pos >= MAX_BUFF_LEN - 1)
+        {
+            printf("buf overflow!\n");
+            exit(-1);
+        }
+        ++pos;
+    }
+    return -2;
+}
+
+/*simple test already*/
+int get_func_desc(const char *func,struct _func_desc_t *func_desc)
+{
+    if(func == NULL)
+      return 0;
+    char word[MAX_NAME_LEN];
+    int i = 0;
+    int parameter_start = 0;
+    int parameter_end = 0;
+    int argument_start = 0;
+    char last_split_char = 0;
+
+    memset(func_desc,0,sizeof(struct _func_desc_t));
+    while(*func!= '\n' && *func != 0)/*parse line*/
+    {
+        i = 0;
+        while(1)/*get word*/
+        {
+            if(isalnum(*func) || *func == '_')
+            {
+                if(i >= MAX_NAME_LEN)
+                {
+                    word[MAX_NAME_LEN-1] = 0;
+                    return 0;
+                }
+                word[i++] = *func;
+            }
+            else
+            {
+                if(*func == '(')
+                {
+                    last_split_char = '(';
+                    parameter_start = 1;
+                }
+                else if(*func == ')')
+                {
+                    last_split_char = ')';
+                    parameter_end = 1;
+                }
+                else if(*func == ',')
+                  last_split_char = ',';
+                else if(*func == ';')
+                  last_split_char = ';';
+                else 
+                  last_split_char = 0;
+                word[i] = 0;
+                ++func;
+                break;
+
+            }
+            ++func;
+        }
+        if(word[0] == 0)
+          continue;
+        if(!strcmp(word,"static"))
+          func_desc->Flags |= FUNC_STATIC;
+        else if(!strcmp(word,"inline"))
+          func_desc->Flags |= FUNC_INLINE;
+        else if(!strcmp(word,"const"))
+          func_desc->Flags |= FUNC_CONST;
+        else if(!strcmp(word,"noreturn"))
+          func_desc->Flags |= FUNC_NORETURN;
+        else if(!strcmp(word,"interrupt"))
+          func_desc->Flags |= FUNC_INTERRUPT;
+        else if(!strcmp(word,"struct"))
+          ;
+        else //parameter name
+        {
+            strcpy(func_desc->parameter[func_desc->argc],word);
+            if(parameter_start)
+            {
+                func_desc->func_index = func_desc->argc;
+                parameter_start = 0;
+                argument_start = 1;
+                func_desc->argc++;
+            }
+            if(argument_start == 0 || last_split_char == ',' || last_split_char == ')')
+              func_desc->argc++;
+            if(func_desc->argc >= MAX_LIST)
+            {
+                printf("Function parameter too much!\n");
+                exit(-1);
+            }
+            if(parameter_end)
+            {
+                if(*func == ';')
+                  func_desc->Flags |= FUNC_DECLARE;
+                break;
+            }
+        }
+
+    }
+    return 1;
+}
+

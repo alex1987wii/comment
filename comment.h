@@ -22,6 +22,7 @@
 #endif
 
 #define MAX_COMMENT_LEN		2048
+#define MAX_BUF_LEN         MAX_COMMENT_LEN
 #define MAX_NAME_LEN		256
 #define MAX_LIST            64
 
@@ -45,12 +46,15 @@ struct _file_desc_t *get_file_desc(const char *file);
 #define FUNC_INLINE		0x00000004
 #define FUNC_NORETURN	0x00000008
 #define FUNC_INTERRUPT	0x00000010
+#define FUNC_DECLARE    0x00000020
 
 typedef struct _func_desc_t{
-	int func_type;
-	char **name_list;
+	int Flags;
+    int func_index;
+    int argc;
+	char parameter[MAX_LIST][MAX_NAME_LEN];
 }func_desc_t;
-struct _func_desc_t *get_func_desc(const char *func);
+int get_func_desc(const char *func,struct _func_desc_t *line);
 
 typedef enum {
 	OPT_h = 0x00000001,
@@ -69,4 +73,15 @@ typedef enum {
 }OPT;
 #define DEFAULT_OPT     (OPT_D | OPT_s)
 #define OPT_FORCE_O     (OPT_MAX<<1)
+
+
+#define BRACKT1_LEFT        1
+#define BRACKT2_LEFT        2
+#define BRACKT3_LEFT        3
+#define COMMENT_LEFT        4
+
+#define BRACKT1_RIGHT       11
+#define BRACKT2_RIGHT       12
+#define BRACKT3_RIGHT       13
+#define COMMENT_RIGHT       14
 #endif
