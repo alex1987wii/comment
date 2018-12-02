@@ -7,8 +7,6 @@
 *
 ***********************************************/
 #include "comment.h"
-#include <stdlib.h>
-#include <string.h>
 /*these varibles should clear for every file*/
 static struct _stack_t *stack = NULL;
 static unsigned int scope = SCOPE_GLOBAL;
@@ -25,7 +23,7 @@ void usage(void)
 	printf("        -f force override the comment.\n");
 	printf("        -o Filename,output filename.\n");
 	printf("        -F Functionlist(split by comma)\n");
-	printf("        -l Linelist(split by comma)\n");
+//	printf("        -l Linelist(split by comma)\n");
 	printf("        -c comment_char,such as @ !,as a prefix for comment.\n");
 	printf("        -i comment on inline function.\n");
 	printf("        -s comment on static function(default).\n");
@@ -36,338 +34,17 @@ void usage(void)
 
 	exit(EXIT_SUCCESS);
 }
-int main(int argc,char *argv[])
+
+static inline int is_in_func_list(const char *func,const char **func_list,int nr_func)
 {
-	if(argc < 2)
-		usage();
-
-	unsigned int opt = 0;
-	const char *args_for_o = NULL;
-	const char *args_for_F = "";
-	const char *args_for_l = "";
-	const char *args_for_c = "=";
-	const char *args_for_L = "=c";
-	int ch;
-	while((ch = getopt(argc,argv,":hfio:F:l:c:sdDuL::")) != -1)
-	{
-		switch(ch)
-		{
-			case 'h':
-				opt |= OPT_h;
-				break;
-			case 'f':
-				opt |= OPT_f;
-				break;
-			case 'i':
-				opt |= OPT_i;
-				break;
-			case 'o':
-				opt |= OPT_o;
-				args_for_o = optarg;
-				break;
-			case 'F':
-				opt |= OPT_F;
-				args_for_F = optarg;
-				break;
-			case 'l':
-				opt |= OPT_l;
-				args_for_l = optarg;
-				break;
-			case 'c':
-				opt |= OPT_c;
-				args_for_c = optarg;
-				break;
-			case 'd':
-				opt |= OPT_d;
-				break;
-			case 'D':
-				opt |= OPT_D;
-				break;
-			case 'L':
-				opt |= OPT_L;
-				args_for_L = optarg;
-				break;
-            case 's':
-                opt |= OPT_s;
-                break;
-            case 'u':
-                opt |= OPT_u;
-                break;
-            case ':':
-			default:
-                usage();
-				break;
-		}
-	}
-
-
-	/* init stack*/
-	stack = (struct _stack_t *)malloc(sizeof(struct _stack_t));
-	if(stack == NULL)
-	{
-		printf("stack malloc failed!\n");
-		exit(-1);
-	}
-#ifndef NDEBUG
-    printf("args_for_F = %s\n",args_for_F);
-    printf("args_for_l = %s\n",args_for_l);
-    printf("args_for_c = %s\n",args_for_c);
-    printf("args_for_L = %s\n",args_for_L);
-    printf("optopt = %s\n",optopt);
-    printf("filelist: ");
-    int i;
-    for(i = optind; i < argc; ++i)
-    {
-        printf("%s\t",argv[i]);
-        
-    }
-    printf("\n");
-#endif
-    /*check args*/
-    lang_t lang = LANG_C;
-    char comment_char = 0;
-    
-    if((opt & OPT_u) == 0)
-      opt |= DEFAULT_OPT;
-
-    if((opt & OPT_c) && args_for_c)
-	{
-        if(*args_for_c == '=')
-          comment_char = *(args_for_c+1);
-        else
-          comment_char = *args_for_c;
-	}
-
-    if((opt & OPT_L) && args_for_L){
-        if(!strcmp(args_for_L,"=java") || !strcmp(args_for_L,"java"))
-          lang = LANG_JAVA;
-        else if(!strcmp(args_for_L,"=cpp") || !strcmp(args_for_L,"cpp"))
-          lang = LANG_CPP;
-        else if(!strcmp(args_for_L,"=python") || !strcmp(args_for_L,"python"))
-          lang = LANG_PYTHON;
-        else if(strcmp(args_for_L,"=c") && strcmp(args_for_L,"c"))
-          usage();
-    }
-    if(lang != LANG_C)
-    {
-        printf("Only support c language yet!\n");
-        exit(EXIT_SUCCESS);
-    }
-    /* we can do our real work now*/
-
-    int nr_file = argc - optind;
-    if(nr_file <= 0)
-      usage();
-    else if(nr_file > 1 && (opt & (OPT_o | OPT_l)))
-    {
-        printf("Can't specify the output file or line number for mutiple input!\n");
-        exit(EXIT_SUCCESS);
-    }
-    else if((opt & OPT_l) && (opt &(OPT_F)))
-    {
-        printf("Can't specify line number and function list at the same time!\n");
-        exit(EXIT_SUCCESS);
-    }
-    char *func_list[MAX_LIST];
-    char *line_list[MAX_LIST];
-
-    int nr_func = strip_str_by_comma(args_for_F,MAX_LIST,func_list);
-    int nr_line = strip_str_by_comma(args_for_l,MAX_LIST,line_list);
-    int line_array[MAX_LIST];
-    int nr = parse_number(line_array,line_list,nr_line);
-    if(nr != nr_line)
-    {
-        printf("Line number error!\n");
-        usage();
-    }
-	/*malloc func_desc memory*/
-	struct _func_desc_t *func_desc = (struct _func_desc_t *)malloc(sizeof(struct _func_desc_t));
-	if(func_desc == NULL)
-	{
-		printf("out of memory.\n");
-		goto QUIT;
-
-	}
-	time_t current_time;
-	time(&current_time);
-	date = asctime(localtime(&current_time));
-	user = getlogin();
-    /*process file one by one*/
 	int i;
-    for(i = 0; i < nr_file; ++i)
-    {
-		char buff[MAX_BUFF_LEN];
-		char comment_buff[MAX_COMMENT_LEN];
-		char line_buff[MAX_LINE_LEN];
-		int  valid_line_index = 0;
-          
-        FILE *fpin = fopen(argv[optind+i],"r");
-        if(fpin == NULL)
-        {
-            printf("%s open failed!\n",argv[optind+i]);
-            continue;
-        }
- 
-        FILE *fptmp = fopen(TMPFILE,"w+");
-        if(fptmp == NULL)
-        {
-            printf("%s create failed!\n",TMPFILE);
-            fclose(fpin);
-            break;
-        }
-
-		if(get_file_comment(argv[optind+i],comment_buff,MAX_COMMENT_LEN)){
-			/*error occur*/
-			printf("%s can't get comment!\n");
-			continue;
-		}
-
-
-		/*init varibles for every file*/
-		memset(stack,0,sizeof(struct _stack_t));
-		scope = SCOPE_GLOBAL;
-		last_line_type = 0;
-		int last_last_line_type = 0;
-		int buff_pos = 0;
-		int line_buff_pos = 0;
-
-
-		/*parse next valid line in file*/
-
-		/*get buff until file end*/
-		int file_loop = 1;
-		while(file_loop)
-		{
-			int read_len = fread(buff,sizeof(char),MAX_BUFF_LEN,fpin);
-			if(MAX_BUFF_LEN != read_len)
-			{
-				if(!feof(fpin))
-				{
-					printf("read %s error\n");
-					clearerr(fpin);
-					goto CONTINUE;
-				}
-				/*file read complete*/
-				file_loop = 0;
-				buff[read_len] = 0;
-			}
-			/*process every buff until it complete*/
-			buff_pos = 0;
-			while(1)
-			{
-				int ret = get_valid_line(buff,MAX_BUFF_LEN,buff_pos,line_buff,&line_buff_pos);
-				if(ret >= 0)
-				{
-					buff_pos = ret + 1;
-					/*parse line*/
-					/*reset func_desc*/
-					memset(func_desc,0,sizeof(struct _func_desc_t));
-					ret = get_func_desc(line_buff,func_desc);
-					if(ret == 0)
-					{
-						printf("%s:parse error.\n",argv[optind+i]);
-						goto CONTINUE;
-					}
-					else if(ret == 1)
-					{
-						if(is_valid_func(func_desc))
-						{
-							/*get function comment*/
-
-#warning "work here"
-						}
-						else if(last_line_type == 1)/*this line is a comment*/
-						{
-							last_last_line_type = 1;//save last line type;
-							if(valid_line_index == 0 && (opt & OPT_f) && (opt & OPT_h))
-							{
-								//write file comment into tmpfie,and jump over buff commet
-
-							}
-						}
-						else if(is_space_line(line_buff))
-						{
-
-							//write space line into tmpfile
-							goto last_line_type_save;
-						}
-						else
-						{
-							last_last_line_type = 0;
-							
-							//write file comment tmpfile
-							if(valid_line_index == 0 && (opt & OPT_h))
-							{
-
-							}
-							//then write this line into tmpfile
-
-						}
-						last_line_type = 0;
-						valid_line_index++;
-last_line_type_save:
-					}
-#ifndef NDEBUG
-					else
-					{
-						printf("get_valid_line return value error.\n");
-						exit(-1);
-					}
-#endif
-
-				}
-				else if(ret == -1)
-				{
-					printf("%s:parse error.\n",argv[optind+i]);
-					goto CONTINUE;
-				}
-				else if(ret == -2)
-				{
-					break;//buff end
-				}
-#ifndef NDEBUG
-				else if(ret == -3)
-				{
-					file_loop = 0;//file end
-				}
-				else
-				{
-					printf("get_valid_line return value error!\n");
-					exit(-1);
-				}
-#endif
-			}
-		}
-		//old code
-        FILE *fpout;
-        if((opt & OPT_o) && args_for_o)
-        {
-            fpout = fopen(args_for_o,"w+");
-            if(fpout == NULL){
-                printf("%s create failed!\n",args_for_o);
-                break;
-            }
-        }
-        else
-        {
-            fpout = fopen(argv[optind+i],"w+");
-            if(fpout == NULL){
-                printf("%s write failed!\n",argv[optind+i]);
-                break;
-            }
-        }
-        /*copy tmpfile to destination*/
-CONTINUE:
-		fclose(fpin);
-		fclose(fptmp);
-
-    }
-	free(func_desc);
-QUIT:
-	free(stack);
+	for(i = 0; i < nr_func; ++i)
+	{
+		if(!strcmp(func_list[i],func))
+			return 1;
+	}
 	return 0;
 }
-
 static inline int is_space_line(const char *line)
 {
 	while(*line)
@@ -729,14 +406,14 @@ parse_err:
 	
 }
 
-int get_func_comment(const struct _func_desc_t *func_desc,char *buff,int bufsize)
+int get_func_comment(const struct _func_desc_t *func_desc,char *buff,int bufsize,int comment_char)
 {
-	snprintf(buff,bufsize,"/************************************************\n*    Function Name : %s\n*    Return Value  : \n",
-			func_desc->parameter[func_desc->func_index]);
+	snprintf(buff,bufsize,"/************************************************\n*    %cFunction Name : %s\n*    %cReturn Value  : \n",
+			comment_char,func_desc->parameter[func_desc->func_index],comment_char);
 	int i;
 	int paramters = func_desc->argc - func_desc->func_index - 1;
 	if(paramters == 0)
-		snprintf(buff+strlen(buff),bufsize-strlen(buff),"*    Parameters    : NULL\n");
+		snprintf(buff+strlen(buff),bufsize-strlen(buff),"*    %cParameters    : NULL\n",comment_char);
 	else
 	{
 		int max_word_len = 0;
@@ -745,22 +422,454 @@ int get_func_comment(const struct _func_desc_t *func_desc,char *buff,int bufsize
 			int word_len = strlen(func_desc->parameter[func_desc->func_index+i+1]);
 			max_word_len = max_word_len < word_len ? word_len : max_word_len;
 		}
+		char tmp_buff[256];
 		for(i = 0; i < paramters; ++i)
 		{
-			snprintf(buff+strlen(buff),bufsize-strlen(buff),"*    %-*s: \n",max_word_len,
-					func_desc->parameter[func_desc->func_index+i+1]);
+			snprintf(tmp_buff,256,"%c%s",comment_char,func_desc->parameter[func_desc->func_index+i+1]);
+			snprintf(buff+strlen(buff),bufsize-strlen(buff),"*    %+*s: \n",max_word_len+1,
+					tmp_buff);
 		}
 
 	}
-	snprintf(buff+strlen(buff),bufsize-strlen(buff),"*    Description   : \n");
-	snprintf(buff+strlen(buff),bufsize-strlen(buff),"*    History       : \n*    Modify Date   : %s\n*    Author        : %s\n************************************************/\n",
-			date,user);
+	snprintf(buff+strlen(buff),bufsize-strlen(buff),"*    %cDescription   : \n",comment_char);
+	snprintf(buff+strlen(buff),bufsize-strlen(buff),"*    %cHistory       : \n*    %cModify Date   : %s\n*    %cAuthor        : %s\n************************************************/\n",
+			comment_char,comment_char,date,comment_char,user);
 	return 1;
 }
-int get_file_comment(const char *filename,char *buff,int bufsize)
+int get_file_comment(const char *filename,char *buff,int bufsize,int comment_char)
 {
-	snprintf(buff,bufsize,"/************************************************\n*    Copy Right    : GPL\n*    File Name     : %s\n*    Author        : %s\n*    Version       : v0.1\n*    History       : \n*    Modify Date   : %s\n*    Description   : \n************************************************/\n",
-			filename,user,date);
+	snprintf(buff,bufsize,"/************************************************\n*    %cCopy Right    : GPL\n*    %cFile Name     : %s\n*    %cAuthor        : %s\n*    %cVersion       : v0.1\n*    %cHistory       : \n*    %cModify Date   : %s\n*    %cDescription   : \n************************************************/\n",
+			comment_char,comment_char,filename,comment_char,user,comment_char,comment_char,comment_char,date,comment_char);
 	return 0;
 
+}
+
+int main(int argc,char *argv[])
+{
+	if(argc < 2)
+		usage();
+
+	unsigned int opt = 0;
+	const char *args_for_o = NULL;
+	char *args_for_F = "";
+	char *args_for_l = "";
+	const char *args_for_c = "=";
+	const char *args_for_L = "=c";
+	int ch;
+    int i;
+	while((ch = getopt(argc,argv,":hfio:F:l:c:sdDuL::")) != -1)
+	{
+		switch(ch)
+		{
+			case 'h':
+				opt |= OPT_h;
+				break;
+			case 'f':
+				opt |= OPT_f;
+				break;
+			case 'i':
+				opt |= OPT_i;
+				break;
+			case 'o':
+				opt |= OPT_o;
+				args_for_o = optarg;
+				break;
+			case 'F':
+				opt |= OPT_F;
+				args_for_F = optarg;
+				break;
+			case 'l':
+				opt |= OPT_l;
+				args_for_l = optarg;
+				break;
+			case 'c':
+				opt |= OPT_c;
+				args_for_c = optarg;
+				break;
+			case 'd':
+				opt |= OPT_d;
+				break;
+			case 'D':
+				opt |= OPT_D;
+				break;
+			case 'L':
+				opt |= OPT_L;
+				args_for_L = optarg;
+				break;
+            case 's':
+                opt |= OPT_s;
+                break;
+            case 'u':
+                opt |= OPT_u;
+                break;
+            case ':':
+			default:
+                usage();
+				break;
+		}
+	}
+
+
+	/* init stack*/
+	stack = (struct _stack_t *)malloc(sizeof(struct _stack_t));
+	if(stack == NULL)
+	{
+		printf("stack malloc failed!\n");
+		exit(-1);
+	}
+#ifndef NDEBUG
+    printf("args_for_F = %s\n",args_for_F);
+    printf("args_for_l = %s\n",args_for_l);
+    printf("args_for_c = %s\n",args_for_c);
+    printf("args_for_L = %s\n",args_for_L);
+    //printf("optopt = %s\n",optopt);
+    printf("filelist: ");
+    for(i = optind; i < argc; ++i)
+    {
+        printf("%s\t",argv[i]);
+        
+    }
+    printf("\n");
+#endif
+    /*check args*/
+    lang_t lang = LANG_C;
+    char comment_char = 0;
+    
+    if((opt & OPT_u) == 0)
+      opt |= DEFAULT_OPT;
+
+    if((opt & OPT_c) && args_for_c)
+	{
+        if(*args_for_c == '=')
+          comment_char = *(args_for_c+1);
+        else
+          comment_char = *args_for_c;
+	}
+
+    if((opt & OPT_L) && args_for_L){
+        if(!strcmp(args_for_L,"=java") || !strcmp(args_for_L,"java"))
+          lang = LANG_JAVA;
+        else if(!strcmp(args_for_L,"=cpp") || !strcmp(args_for_L,"cpp"))
+          lang = LANG_CPP;
+        else if(!strcmp(args_for_L,"=python") || !strcmp(args_for_L,"python"))
+          lang = LANG_PYTHON;
+        else if(strcmp(args_for_L,"=c") && strcmp(args_for_L,"c"))
+          usage();
+    }
+    if(lang != LANG_C)
+    {
+        printf("Only support c language yet!\n");
+        exit(EXIT_SUCCESS);
+    }
+    /* we can do our real work now*/
+
+    int nr_file = argc - optind;
+    if(nr_file <= 0)
+      usage();
+    else if(nr_file > 1 && (opt & (OPT_o | OPT_l)))
+    {
+        printf("Can't specify the output file or line number for mutiple input!\n");
+        exit(EXIT_SUCCESS);
+    }
+    else if((opt & OPT_l) && (opt &(OPT_F)))
+    {
+        printf("Can't specify line number and function list at the same time!\n");
+        exit(EXIT_SUCCESS);
+    }
+    char *func_list[MAX_LIST];
+    char *line_list[MAX_LIST];
+
+    int nr_func = strip_str_by_comma(args_for_F,MAX_LIST,func_list);
+    int nr_line = strip_str_by_comma(args_for_l,MAX_LIST,line_list);
+    int line_array[MAX_LIST];
+    int nr = parse_number(line_array,line_list,nr_line);
+    if(nr != nr_line)
+    {
+        printf("Line number error!\n");
+        usage();
+    }
+	/*malloc func_desc memory*/
+	struct _func_desc_t *func_desc = (struct _func_desc_t *)malloc(sizeof(struct _func_desc_t));
+	if(func_desc == NULL)
+	{
+		printf("out of memory.\n");
+		goto QUIT;
+
+	}
+#define TMP_BUFF_LEN		0x00004000
+	char *tmp_buff = (char *)malloc(TMP_BUFF_LEN);
+	if(tmp_buff == NULL)
+	{
+		printf("out of memory.\n");
+		goto func_desc_err;
+	}
+
+	time_t current_time;
+	time(&current_time);
+	date = asctime(localtime(&current_time));
+	user = getlogin();
+    /*process file one by one*/
+    for(i = 0; i < nr_file; ++i)
+    {
+		char buff[MAX_BUFF_LEN];
+		char comment_buff[MAX_COMMENT_LEN];
+		char line_buff[MAX_LINE_LEN];
+		int  valid_line_index = 0;
+          
+
+        FILE *fpin = fopen(argv[optind+i],"r");
+        if(fpin == NULL)
+        {
+            printf("%s open failed!\n",argv[optind+i]);
+            continue;
+        }
+ 
+        FILE *fptmp = fopen(TMPFILE,"w+");
+        if(fptmp == NULL)
+        {
+            printf("%s create failed!\n",TMPFILE);
+            fclose(fpin);
+            break;
+        }
+
+		if(get_file_comment(argv[optind+i],comment_buff,MAX_COMMENT_LEN,comment_char)){
+			/*error occur*/
+			printf("%s can't get comment!\n",argv[optind+i]);
+			continue;
+		}
+
+		/*init varibles for every file*/
+		memset(stack,0,sizeof(struct _stack_t));
+		scope = SCOPE_GLOBAL;
+		last_line_type = 0;
+		int last_last_line_type = 0;
+		int buff_pos = 0;
+		int line_buff_pos = 0;
+
+
+		/*parse next valid line in file*/
+
+		/*get buff until file end*/
+		int file_loop = 1;
+
+		int tmp_buff_pos = 0;
+		int len = 0;
+
+		/*write file comment into tmpfile*/
+		if(opt & OPT_h)
+		{
+			len = strlen(comment_buff);
+			if(len != fwrite(comment_buff,1,len,fptmp))
+			{
+				printf("%s: write error.\n",argv[optind+i]);
+				goto CONTINUE;
+			}
+
+		}
+		while(file_loop)
+		{
+			int read_len = fread(buff,sizeof(char),MAX_BUFF_LEN,fpin);
+			if(MAX_BUFF_LEN != read_len)
+			{
+				if(!feof(fpin))
+				{
+					printf("read %s error\n",argv[optind+i]);
+					clearerr(fpin);
+					goto CONTINUE;
+				}
+				/*file read complete*/
+				file_loop = 0;
+				buff[read_len] = 0;
+			}
+			/*process every buff until it complete*/
+			buff_pos = 0;
+
+			int start_pos = 0; //start pos for buff
+			while(1)
+			{
+				int ret = get_valid_line(buff,MAX_BUFF_LEN,buff_pos,line_buff,&line_buff_pos);
+				if(ret >= 0)
+				{
+					start_pos = buff_pos;
+					buff_pos = ret + 1;
+					/*parse line*/
+					/*reset func_desc*/
+					memset(func_desc,0,sizeof(struct _func_desc_t));
+					ret = get_func_desc(line_buff,func_desc);
+					if(ret == 0)
+					{
+						printf("%s:parse error.\n",argv[optind+i]);
+						goto CONTINUE;
+					}
+					else if(ret == 1)
+					{
+						if(is_valid_func(func_desc))
+						{
+							/*get function comment*/
+							if((opt & OPT_F) == 0)
+							{
+								/*process every function in opt*/
+								if(((opt & OPT_f) || last_last_line_type == 0) &&\
+										(func_desc->Flags & (opt & OPT_FILTER)))
+								{
+									/*write function comment into tmpfile*/
+
+									get_func_comment(func_desc,comment_buff,MAX_COMMENT_LEN,comment_char);
+									len = strlen(comment_buff);
+									if(len != fwrite(comment_buff,1,len,fptmp))
+									{
+										printf("%s: write error.\n",argv[optind+i]);
+										goto CONTINUE;
+									}
+
+								}
+							}
+							else
+							{
+								/*process function only in function list*/
+								if(((opt & OPT_f) || last_last_line_type == 0) &&\
+										(func_desc->Flags & (opt & OPT_FILTER)) &&\
+										is_in_func_list(func_desc->parameter[func_desc->func_index],func_list,nr_func))
+								{
+									/*write function comment into tmpfile*/
+									get_func_comment(func_desc,comment_buff,MAX_COMMENT_LEN,comment_char);
+									len = strlen(comment_buff);
+									if(len != fwrite(comment_buff,1,len,fptmp))
+									{
+										printf("%s: write error.\n",argv[optind+i]);
+										goto CONTINUE;
+									}
+								}
+							}
+
+							last_last_line_type = 0;
+						}
+						else if(is_space_line(line_buff))
+						{
+							goto last_line_type_save;
+						}
+						else if(last_line_type == 1)
+							last_last_line_type = 1;
+						else
+							last_last_line_type = 0;
+
+						last_line_type = 0;
+last_line_type_save:
+						if(tmp_buff_pos != 0)
+						{
+							//flush tmp buff first
+							tmp_buff_pos = 0;
+							len = strlen(tmp_buff);
+							if(len != fwrite(tmp_buff,1,len,fptmp))
+							{
+								printf("%s: write error.\n",argv[optind+i]);
+								goto CONTINUE;
+							}
+
+						}
+						len = buff_pos - start_pos;
+						assert(len > 0);
+						if(len != fwrite(buff+start_pos,1,len,fptmp))
+						{
+							printf("%s:write error.\n",argv[optind+i]);
+							goto CONTINUE;
+						}
+
+					}
+#ifndef NDEBUG
+					else
+					{
+						printf("get_valid_line return value error.\n");
+						exit(-1);
+					}
+#endif
+
+				}
+				else if(ret == -1)
+				{
+					printf("%s:parse error.\n",argv[optind+i]);
+					goto CONTINUE;
+				}
+				else if(ret == -2)
+				{
+
+					//write left line into tmp buff
+					memcpy(tmp_buff+tmp_buff_pos,buff+start_pos,read_len - start_pos);
+					tmp_buff_pos += read_len - start_pos;
+					if(tmp_buff_pos >= TMP_BUFF_LEN)
+					{
+						printf("%s:tmp buff overflow.\n",argv[optind+i]);
+						goto CONTINUE;
+					}
+					tmp_buff[tmp_buff_pos] = 0;
+					break;//buff end
+				}
+#ifndef NDEBUG
+				else if(ret == -3)
+				{
+					file_loop = 0;//file end
+				}
+				else
+				{
+					printf("get_valid_line return value error!\n");
+					exit(-1);
+				}
+#endif
+			}
+		}
+        FILE *fpout;
+        if((opt & OPT_o) && args_for_o)
+        {
+            fpout = fopen(args_for_o,"w+");
+            if(fpout == NULL){
+                printf("%s create failed!\n",args_for_o);
+				goto CONTINUE;
+            }
+        }
+        else
+        {
+            fpout = fopen(argv[optind+i],"w+");
+            if(fpout == NULL){
+                printf("%s write failed!\n",argv[optind+i]);
+				goto CONTINUE;
+            }
+        }
+		/*set tmpfile fp to SEEK_SET*/
+		fseek(fptmp,0,SEEK_SET);
+        /*copy tmpfile to destination*/
+		file_loop = 1;
+		while(file_loop)
+		{
+			len = fread(buff,1,MAX_BUFF_LEN,fptmp);
+			if(len != MAX_BUFF_LEN)
+			{
+				if(feof(fptmp))
+				{
+					buff[len] = 0;
+					file_loop = 0;
+				}
+				else
+				{
+					printf("%s:read error.\n",argv[optind+i]);
+					break;
+				}
+			}
+			if(len && len != fwrite(buff,1,len,fpout))
+			{
+				printf("%s:write error.\n",argv[optind+i]);
+				break;
+			}
+		}
+		fclose(fpout);
+CONTINUE:
+		fclose(fpin);
+		fclose(fptmp);
+
+    }
+	free(tmp_buff);
+func_desc_err:
+	free(func_desc);
+QUIT:
+	free(stack);
+	return 0;
 }

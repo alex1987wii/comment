@@ -21,6 +21,9 @@
 #error "only support windows and linux OS"
 #endif
 #include <assert.h>
+#include <stdlib.h>
+#include <ctype.h>
+#include <string.h>
 
 #define MAX_COMMENT_LEN		2048
 #define MAX_BUFF_LEN        4096 
@@ -62,11 +65,14 @@ typedef enum {
 	LANG_PYTHON
 }lang_t;
 
+#if 0
 typedef struct _file_desc_t{
 	lang_t lang;
 	char *comment;
 }file_desc_t;
 struct _file_desc_t *get_file_desc(const char *file);
+#endif
+
 
 #define FUNC_INLINE		0x00000001
 #define FUNC_STATIC		0x00000002
@@ -89,7 +95,8 @@ static inline int is_valid_func(const struct _func_desc_t *func_desc)
 	return (func_desc->func_index > 0 && !(func_desc->Flags & FUNC_TYPEDEF));
 }
 
-int get_func_comment(const struct _func_desc_t *func_desc,char *comment,int bufsize);
+int get_file_comment(const char *filename,char *comment,int bufsize,int comment_char);
+int get_func_comment(const struct _func_desc_t *func_desc,char *comment,int bufsize,int comment_char);
 
 typedef enum {
 	OPT_i = 0x00000001,
@@ -107,6 +114,7 @@ typedef enum {
     OPT_MAX=OPT_u,
 }OPT;
 #define DEFAULT_OPT     (OPT_D | OPT_s)
+#define OPT_FILTER		(OPT_i | OPT_s | OPT_d | OPT_D)
 #define OPT_FORCE_O     (OPT_MAX<<1)
 
 
