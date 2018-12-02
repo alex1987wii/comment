@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
+#include <time.h>
 
 #define MAX_COMMENT_LEN		2048
 #define MAX_BUFF_LEN        4096 

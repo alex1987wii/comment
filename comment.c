@@ -352,7 +352,7 @@ int get_valid_line(const char *buff,int bufsize,int start_pos,char *valid_buf,in
 					--(*valid_buf_pos);
 					goto NEXT2;
 				}
-				else if(stack->length == 0)
+				if(stack->length == 0)
                 {
 					
 					scope &= ~SCOPE_COMMENT_LINE;
@@ -367,18 +367,20 @@ int get_valid_line(const char *buff,int bufsize,int start_pos,char *valid_buf,in
 				   int main(int param1,
 				   int param2);
 				 */
-				else if(stack->elem[0] == BRACKT1_LEFT)
+				else if(stack->length == 1 && stack->elem[0] == BRACKT1_LEFT)
 				{
 					last_char = '\n';
 					goto NEXT2;
 				}
 				*valid_buf_pos = 0;
 				valid_buf[0] = 0;
-				break;
+				last_char = '\n';
+				goto NEXT2;
             case '\0':
                 if(stack->length !=0)
                   goto parse_err;
                 valid_buf[(*valid_buf_pos)++] = buff[pos];
+				*valid_buf_pos = 0;
                 last_char = 0;
                 return -3;
             default:
@@ -426,19 +428,19 @@ int get_func_comment(const struct _func_desc_t *func_desc,char *buff,int bufsize
 		for(i = 0; i < paramters; ++i)
 		{
 			snprintf(tmp_buff,256,"%c%s",comment_char,func_desc->parameter[func_desc->func_index+i+1]);
-			snprintf(buff+strlen(buff),bufsize-strlen(buff),"*    %+*s: \n",max_word_len+1,
+			snprintf(buff+strlen(buff),bufsize-strlen(buff),"*    %-*s: \n",max_word_len+1,
 					tmp_buff);
 		}
 
 	}
 	snprintf(buff+strlen(buff),bufsize-strlen(buff),"*    %cDescription   : \n",comment_char);
-	snprintf(buff+strlen(buff),bufsize-strlen(buff),"*    %cHistory       : \n*    %cModify Date   : %s\n*    %cAuthor        : %s\n************************************************/\n",
+	snprintf(buff+strlen(buff),bufsize-strlen(buff),"*    %cHistory       : \n*    %cModify Date   : %s*    %cAuthor        : %s\n************************************************/\n",
 			comment_char,comment_char,date,comment_char,user);
 	return 1;
 }
 int get_file_comment(const char *filename,char *buff,int bufsize,int comment_char)
 {
-	snprintf(buff,bufsize,"/************************************************\n*    %cCopy Right    : GPL\n*    %cFile Name     : %s\n*    %cAuthor        : %s\n*    %cVersion       : v0.1\n*    %cHistory       : \n*    %cModify Date   : %s\n*    %cDescription   : \n************************************************/\n",
+	snprintf(buff,bufsize,"/************************************************\n*    %cCopy Right    : GPL\n*    %cFile Name     : %s\n*    %cAuthor        : %s\n*    %cVersion       : v0.1\n*    %cHistory       : \n*    %cModify Date   : %s*    %cDescription   : \n************************************************/\n",
 			comment_char,comment_char,filename,comment_char,user,comment_char,comment_char,comment_char,date,comment_char);
 	return 0;
 
@@ -533,7 +535,7 @@ int main(int argc,char *argv[])
 #endif
     /*check args*/
     lang_t lang = LANG_C;
-    char comment_char = 0;
+    char comment_char = ' ';
     
     if((opt & OPT_u) == 0)
       opt |= DEFAULT_OPT;
@@ -637,7 +639,12 @@ int main(int argc,char *argv[])
 			printf("%s can't get comment!\n",argv[optind+i]);
 			continue;
 		}
-
+#ifndef NDEBUG
+		printf("file comment start:==============================================\n");
+		printf("%s",comment_buff);
+		printf("==============================================================\n");
+		getchar();
+#endif
 		/*init varibles for every file*/
 		memset(stack,0,sizeof(struct _stack_t));
 		scope = SCOPE_GLOBAL;
@@ -715,6 +722,12 @@ int main(int argc,char *argv[])
 									/*write function comment into tmpfile*/
 
 									get_func_comment(func_desc,comment_buff,MAX_COMMENT_LEN,comment_char);
+#ifndef NDEBUG
+		printf("function comment start:==============================================\n");
+		printf("%s",comment_buff);
+		printf("==============================================================\n");
+		getchar();
+#endif
 									len = strlen(comment_buff);
 									if(len != fwrite(comment_buff,1,len,fptmp))
 									{
@@ -733,6 +746,12 @@ int main(int argc,char *argv[])
 								{
 									/*write function comment into tmpfile*/
 									get_func_comment(func_desc,comment_buff,MAX_COMMENT_LEN,comment_char);
+#ifndef NDEBUG
+		printf("function comment start:==============================================\n");
+		printf("%s",comment_buff);
+		printf("==============================================================\n");
+		getchar();
+#endif
 									len = strlen(comment_buff);
 									if(len != fwrite(comment_buff,1,len,fptmp))
 									{
@@ -808,6 +827,7 @@ last_line_type_save:
 				else if(ret == -3)
 				{
 					file_loop = 0;//file end
+					break;
 				}
 				else
 				{
@@ -837,6 +857,9 @@ last_line_type_save:
 		/*set tmpfile fp to SEEK_SET*/
 		fseek(fptmp,0,SEEK_SET);
         /*copy tmpfile to destination*/
+#ifndef NDEBUG
+		printf("file_loop = %d\n",file_loop);
+#endif
 		file_loop = 1;
 		while(file_loop)
 		{
@@ -860,6 +883,10 @@ last_line_type_save:
 				break;
 			}
 		}
+#ifndef NDEBUG
+		printf("file_loop = %d\n",file_loop);
+#endif
+
 		fclose(fpout);
 CONTINUE:
 		fclose(fpin);
@@ -871,5 +898,6 @@ func_desc_err:
 	free(func_desc);
 QUIT:
 	free(stack);
+	system("rm -rf .tmp.swp");
 	return 0;
 }
