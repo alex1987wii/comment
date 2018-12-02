@@ -26,6 +26,11 @@
 #include <string.h>
 #include <time.h>
 
+
+#ifdef NDEBUG
+#define printf(fmt,args...)		fprintf(stderr,"%s:%d:"fmt,__func__,__LINE__,##args)
+#endif
+
 #define MAX_COMMENT_LEN		2048
 #define MAX_BUFF_LEN        4096 
 #define MAX_LINE_LEN		2048
@@ -114,7 +119,7 @@ typedef enum {
     OPT_u = 0x00000800,
     OPT_MAX=OPT_u,
 }OPT;
-#define DEFAULT_OPT     (OPT_D | OPT_s)
+#define DEFAULT_OPT     OPT_D
 #define OPT_FILTER		(OPT_i | OPT_s | OPT_d | OPT_D)
 #define OPT_FORCE_O     (OPT_MAX<<1)
 
@@ -123,6 +128,9 @@ typedef enum {
 #define BRACKT2_LEFT        2
 #define BRACKT3_LEFT        3
 #define COMMENT_LEFT        4
+#define COMMENT_LINE		5
+#define DMARK				6
+#define SMARK				7
 
 #define BRACKT1_RIGHT       11
 #define BRACKT2_RIGHT       12

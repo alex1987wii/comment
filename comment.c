@@ -34,7 +34,20 @@ void usage(void)
 
 	exit(EXIT_SUCCESS);
 }
+/*if COMMENT_LEFT in stack before DMARK or SMARK,it's comment,otherwise can't get the result,need extern information*/
+static inline int is_comment(const struct _stack_t *stack)
+{
+	int i;
+	for(i = 0; i < stack->length; ++i)
+	{
+		if(stack->elem[i] == COMMENT_LEFT)
+			return 1;
+		else if(stack->elem[i] == DMARK || stack->elem[i] == SMARK)
+			return 0;
+	}
+	return 0;
 
+}
 static inline int is_in_func_list(const char *func,const char **func_list,int nr_func)
 {
 	int i;
@@ -203,8 +216,13 @@ int get_func_desc(const char *func,struct _func_desc_t *func_desc)
 		}
 
 	}
-	if(is_valid_func(func_desc) && !(func_desc->Flags & FUNC_DECLARE))
-		func_desc->Flags |= FUNC_DEFINITION;
+	if(is_valid_func(func_desc))
+	{
+		if(!(func_desc->Flags & FUNC_DECLARE))
+			func_desc->Flags |= FUNC_DEFINITION;
+		if(!strcmp(func_desc->parameter[func_desc->argc-1],"void"))
+			func_desc->argc--;
+	}
 
     return 1;
 }
@@ -271,25 +289,26 @@ int get_valid_line(const char *buff,int bufsize,int start_pos,char *valid_buf,in
 				}
 				break;
 			case '/':
-				if(last_char == '*')
+				if(scope < SCOPE_DMARK)
 				{
-					if(pop(stack) != COMMENT_LEFT)
-						goto parse_err;
-					scope &= ~SCOPE_COMMENT;
+					if(last_char == '*')
+					{
+						if(pop(stack) != COMMENT_LEFT)
+							goto parse_err;
+						scope &= ~SCOPE_COMMENT;
+					}
+					else if(last_char == '/' && scope == SCOPE_GLOBAL)
+					{
+						scope |= SCOPE_COMMENT_LINE;
+						push(stack,COMMENT_LINE);
+					}
 				}
-				else if(last_char == '/' && scope == SCOPE_GLOBAL)
-				{
-					scope |= SCOPE_COMMENT_LINE;
-					last_line_type = 1;
-				}
-
 				break;
 			case '*':
-				if(last_char == '/')
+				if(scope < SCOPE_DMARK && last_char == '/')
 				{
 					push(stack,COMMENT_LEFT);
 					scope |= SCOPE_COMMENT;
-					last_line_type = 1;
 				}
 				break;
 			case '\"':
@@ -297,14 +316,14 @@ int get_valid_line(const char *buff,int bufsize,int start_pos,char *valid_buf,in
 				{
 					if(last_char == '\\')
 						break;
-					else if(stack->length > 0 && peek(stack) == '\"')
+					else if(stack->length > 0 && peek(stack) == DMARK)
 					{
 						pop(stack);
 						scope &= ~SCOPE_DMARK;
 					}
 					else
 					{
-						push(stack,'\"');
+						push(stack,DMARK);
 						scope |= SCOPE_DMARK;
 					}
 				}
@@ -314,14 +333,14 @@ int get_valid_line(const char *buff,int bufsize,int start_pos,char *valid_buf,in
 				{
 					if(last_char == '\\')
 						break;
-					else if(stack->length > 0 && peek(stack) == '\'')
+					else if(stack->length > 0 && peek(stack) == SMARK)
 					{
 						pop(stack);
 						scope &= ~SCOPE_SMARK;
 					}
 					else
 					{
-						push(stack,'\'');
+						push(stack,SMARK);
 						scope |= SCOPE_SMARK;
 					}
 				}
@@ -372,6 +391,18 @@ int get_valid_line(const char *buff,int bufsize,int start_pos,char *valid_buf,in
 					last_char = '\n';
 					goto NEXT2;
 				}
+
+				//update last_line_type
+				last_line_type = 0;
+				if(is_comment(stack))
+					last_line_type = 1;
+				else if(peek(stack) == COMMENT_LINE)
+				{
+					pop(stack);
+					last_line_type = 1;
+				}
+
+				//drop line buff
 				*valid_buf_pos = 0;
 				valid_buf[0] = 0;
 				last_char = '\n';
@@ -410,15 +441,16 @@ parse_err:
 
 int get_func_comment(const struct _func_desc_t *func_desc,char *buff,int bufsize,int comment_char)
 {
-	snprintf(buff,bufsize,"/************************************************\n*    %cFunction Name : %s\n*    %cReturn Value  : \n",
+	snprintf(buff,bufsize,"/************************************************\n**    %cFunction Name : %s\n**    %cReturn Value  : \n",
 			comment_char,func_desc->parameter[func_desc->func_index],comment_char);
 	int i;
 	int paramters = func_desc->argc - func_desc->func_index - 1;
 	if(paramters == 0)
-		snprintf(buff+strlen(buff),bufsize-strlen(buff),"*    %cParameters    : NULL\n",comment_char);
+		snprintf(buff+strlen(buff),bufsize-strlen(buff),"**    %cParameters    : NULL\n",comment_char);
 	else
 	{
 		int max_word_len = 0;
+		snprintf(buff+strlen(buff),bufsize-strlen(buff),"**    %cParameters    : \n",comment_char);
 		for(i = 0; i < paramters; ++i)
 		{
 			int word_len = strlen(func_desc->parameter[func_desc->func_index+i+1]);
@@ -428,19 +460,19 @@ int get_func_comment(const struct _func_desc_t *func_desc,char *buff,int bufsize
 		for(i = 0; i < paramters; ++i)
 		{
 			snprintf(tmp_buff,256,"%c%s",comment_char,func_desc->parameter[func_desc->func_index+i+1]);
-			snprintf(buff+strlen(buff),bufsize-strlen(buff),"*    %-*s: \n",max_word_len+1,
+			snprintf(buff+strlen(buff),bufsize-strlen(buff),"**        %-*s: \n",max_word_len+1,
 					tmp_buff);
 		}
 
 	}
-	snprintf(buff+strlen(buff),bufsize-strlen(buff),"*    %cDescription   : \n",comment_char);
-	snprintf(buff+strlen(buff),bufsize-strlen(buff),"*    %cHistory       : \n*    %cModify Date   : %s*    %cAuthor        : %s\n************************************************/\n",
+	snprintf(buff+strlen(buff),bufsize-strlen(buff),"**    %cDescription   : \n",comment_char);
+	snprintf(buff+strlen(buff),bufsize-strlen(buff),"**    %cHistory       : \n**    %cModify Date   : %s**    %cAuthor        : %s\n************************************************/\n",
 			comment_char,comment_char,date,comment_char,user);
 	return 1;
 }
 int get_file_comment(const char *filename,char *buff,int bufsize,int comment_char)
 {
-	snprintf(buff,bufsize,"/************************************************\n*    %cCopy Right    : GPL\n*    %cFile Name     : %s\n*    %cAuthor        : %s\n*    %cVersion       : v0.1\n*    %cHistory       : \n*    %cModify Date   : %s*    %cDescription   : \n************************************************/\n",
+	snprintf(buff,bufsize,"/************************************************\n**    %cCopy Right    : GPL\n**    %cFile Name     : %s\n**    %cAuthor        : %s\n**    %cVersion       : v0.1\n**    %cHistory       : \n**    %cModify Date   : %s**    %cDescription   : \n************************************************/\n",
 			comment_char,comment_char,filename,comment_char,user,comment_char,comment_char,comment_char,date,comment_char);
 	return 0;
 
@@ -695,20 +727,23 @@ int main(int argc,char *argv[])
 			while(1)
 			{
 				int ret = get_valid_line(buff,MAX_BUFF_LEN,buff_pos,line_buff,&line_buff_pos);
-				if(ret >= 0)
+				if(ret >= 0 || ret == -3)//success or file end
 				{
-					start_pos = buff_pos;
-					buff_pos = ret + 1;
+					if(ret >= 0 )
+					{
+						start_pos = buff_pos;
+						buff_pos = ret + 1;
+					}
 					/*parse line*/
 					/*reset func_desc*/
 					memset(func_desc,0,sizeof(struct _func_desc_t));
-					ret = get_func_desc(line_buff,func_desc);
-					if(ret == 0)
+					int func_ret = get_func_desc(line_buff,func_desc);
+					if(func_ret == 0)
 					{
 						printf("%s:parse error.\n",argv[optind+i]);
 						goto CONTINUE;
 					}
-					else if(ret == 1)
+					else if(func_ret == 1)
 					{
 						if(is_valid_func(func_desc))
 						{
@@ -786,7 +821,10 @@ last_line_type_save:
 							}
 
 						}
-						len = buff_pos - start_pos;
+						if(ret >= 0)
+							len = buff_pos - start_pos;
+						else
+							len = strlen(buff+buff_pos+1);
 						assert(len > 0);
 						if(len != fwrite(buff+start_pos,1,len,fptmp))
 						{
@@ -802,6 +840,11 @@ last_line_type_save:
 						exit(-1);
 					}
 #endif
+					if(ret == -3)//file end
+					{
+						assert(file_loop == 0);
+						break;
+					}
 
 				}
 				else if(ret == -1)
@@ -824,11 +867,6 @@ last_line_type_save:
 					break;//buff end
 				}
 #ifndef NDEBUG
-				else if(ret == -3)
-				{
-					file_loop = 0;//file end
-					break;
-				}
 				else
 				{
 					printf("get_valid_line return value error!\n");
@@ -848,6 +886,8 @@ last_line_type_save:
         }
         else
         {
+			fclose(fpin);
+			fpin = NULL;
             fpout = fopen(argv[optind+i],"w+");
             if(fpout == NULL){
                 printf("%s write failed!\n",argv[optind+i]);
@@ -857,9 +897,6 @@ last_line_type_save:
 		/*set tmpfile fp to SEEK_SET*/
 		fseek(fptmp,0,SEEK_SET);
         /*copy tmpfile to destination*/
-#ifndef NDEBUG
-		printf("file_loop = %d\n",file_loop);
-#endif
 		file_loop = 1;
 		while(file_loop)
 		{
@@ -883,13 +920,11 @@ last_line_type_save:
 				break;
 			}
 		}
-#ifndef NDEBUG
-		printf("file_loop = %d\n",file_loop);
-#endif
 
 		fclose(fpout);
 CONTINUE:
-		fclose(fpin);
+		if(fpin)
+			fclose(fpin);
 		fclose(fptmp);
 
     }
