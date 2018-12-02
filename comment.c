@@ -184,6 +184,8 @@ int get_func_desc(const char *func,struct _func_desc_t *func_desc)
 			func_desc->Flags |= FUNC_DECLARE;
 		else if(!strcmp(word,"typedef"))
 			func_desc->Flags |= FUNC_TYPEDEF;
+		else if(!strcmp(word,"return"))
+			func_desc->Flags |= FUNC_INVALID;
 		else if(!strcmp(word,"struct"))
 			;
 		else //parameter name
@@ -484,6 +486,8 @@ int main(int argc,char *argv[])
 		usage();
 
 	unsigned int opt = 0;
+	unsigned int opt_or = OPT_OR;
+	unsigned int opt_not = OPT_NOT;
 	const char *args_for_o = NULL;
 	char *args_for_F = "";
 	char *args_for_l = "";
@@ -570,9 +574,19 @@ int main(int argc,char *argv[])
     char comment_char = ' ';
     
     if((opt & OPT_u) == 0)
-      opt |= DEFAULT_OPT;
+	{
+		opt |= DEFAULT_OPT;
+		opt_or &= opt;
+		opt_not &= ~opt;
+	}
+	else
+	{
+		opt_or &= opt;
+		opt_not &= ~opt;
+	}
 
-    if((opt & OPT_c) && args_for_c)
+
+	if((opt & OPT_c) && args_for_c)
 	{
         if(*args_for_c == '=')
           comment_char = *(args_for_c+1);
@@ -680,7 +694,6 @@ int main(int argc,char *argv[])
 		/*init varibles for every file*/
 		memset(stack,0,sizeof(struct _stack_t));
 		scope = SCOPE_GLOBAL;
-		last_line_type = 0;
 		int last_last_line_type = 0;
 		int buff_pos = 0;
 		int line_buff_pos = 0;
@@ -751,8 +764,9 @@ int main(int argc,char *argv[])
 							if((opt & OPT_F) == 0)
 							{
 								/*process every function in opt*/
-								if(((opt & OPT_f) || last_last_line_type == 0) &&\
-										(func_desc->Flags & (opt & OPT_FILTER)))
+								if(((opt & OPT_f) || last_last_line_type == 0) && \
+										!(func_desc->Flags & opt_not) && \
+										(func_desc->Flags & opt_or))
 								{
 									/*write function comment into tmpfile*/
 
@@ -775,8 +789,9 @@ int main(int argc,char *argv[])
 							else
 							{
 								/*process function only in function list*/
-								if(((opt & OPT_f) || last_last_line_type == 0) &&\
-										(func_desc->Flags & (opt & OPT_FILTER)) &&\
+								if(((opt & OPT_f) || last_last_line_type == 0) && \
+										!(func_desc->Flags & opt_not) && \
+										(func_desc->Flags & opt_or) && \
 										is_in_func_list(func_desc->parameter[func_desc->func_index],func_list,nr_func))
 								{
 									/*write function comment into tmpfile*/
@@ -807,7 +822,6 @@ int main(int argc,char *argv[])
 						else
 							last_last_line_type = 0;
 
-						last_line_type = 0;
 last_line_type_save:
 						if(tmp_buff_pos != 0)
 						{
@@ -933,6 +947,6 @@ func_desc_err:
 	free(func_desc);
 QUIT:
 	free(stack);
-	system("rm -rf .tmp.swp");
+	system("rm -rf "TMPFILE);
 	return 0;
 }

@@ -27,7 +27,7 @@
 #include <time.h>
 
 
-#ifdef NDEBUG
+#ifndef NDEBUG
 #define printf(fmt,args...)		fprintf(stderr,"%s:%d:"fmt,__func__,__LINE__,##args)
 #endif
 
@@ -88,6 +88,7 @@ struct _file_desc_t *get_file_desc(const char *file);
 #define FUNC_INTERRUPT	0x00000020
 #define FUNC_TYPEDEF	0x00000040
 #define FUNC_CONST		0x00000080
+#define FUNC_INVALID	0x00000100
 
 typedef struct _func_desc_t{
 	int Flags;
@@ -98,7 +99,7 @@ typedef struct _func_desc_t{
 int get_func_desc(const char *func,struct _func_desc_t *line);
 static inline int is_valid_func(const struct _func_desc_t *func_desc)
 {
-	return (func_desc->func_index > 0 && !(func_desc->Flags & FUNC_TYPEDEF));
+	return (func_desc->func_index > 0 && !(func_desc->Flags & (FUNC_TYPEDEF | FUNC_INVALID)));
 }
 
 int get_file_comment(const char *filename,char *comment,int bufsize,int comment_char);
@@ -121,6 +122,8 @@ typedef enum {
 }OPT;
 #define DEFAULT_OPT     OPT_D
 #define OPT_FILTER		(OPT_i | OPT_s | OPT_d | OPT_D)
+#define OPT_OR			(OPT_D | OPT_s)
+#define OPT_NOT			(OPT_i | OPT_d)
 #define OPT_FORCE_O     (OPT_MAX<<1)
 
 
