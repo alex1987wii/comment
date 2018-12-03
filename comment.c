@@ -239,6 +239,7 @@ int get_valid_line(const char *buff,int bufsize,int start_pos,char *valid_buf,in
 {
 	int pos = start_pos;
 	static char last_char = '\0';
+	last_line_type = 0;
 	while(pos < bufsize)
 	{
 		switch(buff[pos])
@@ -298,11 +299,13 @@ int get_valid_line(const char *buff,int bufsize,int start_pos,char *valid_buf,in
 						if(pop(stack) != COMMENT_LEFT)
 							goto parse_err;
 						scope &= ~SCOPE_COMMENT;
+						last_line_type = 1;
 					}
 					else if(!(scope & SCOPE_COMMENT) && last_char == '/')
 					{
 						scope |= SCOPE_COMMENT_LINE;
 						push(stack,COMMENT_LINE);
+						last_line_type = 1;
 					}
 				}
 				break;
@@ -359,7 +362,6 @@ int get_valid_line(const char *buff,int bufsize,int start_pos,char *valid_buf,in
 				break;
 
             case '\r':
-				last_char ='\r';
 				goto NEXT2;
             case '\n'://end
 				if(last_char == '\\')
@@ -395,7 +397,6 @@ int get_valid_line(const char *buff,int bufsize,int start_pos,char *valid_buf,in
 				}
 
 				//update last_line_type
-				last_line_type = 0;
 				if(is_comment(stack))
 					last_line_type = 1;
 				else if(peek(stack) == COMMENT_LINE)
@@ -418,6 +419,8 @@ int get_valid_line(const char *buff,int bufsize,int start_pos,char *valid_buf,in
                 last_char = 0;
                 return -3;
             default:
+				if(!(scope & ( SCOPE_COMMENT | SCOPE_COMMENT_LINE)) && !isspace(buff[pos]))
+					last_line_type = 0;
                 break;
 
         }
@@ -749,6 +752,8 @@ int main(int argc,char *argv[])
 						start_pos = buff_pos;
 						buff_pos = ret + 1;
 					}
+					else
+						start_pos = buff_pos + 1;
 					/*parse line*/
 					/*reset func_desc*/
 					memset(func_desc,0,sizeof(struct _func_desc_t));
@@ -773,7 +778,7 @@ int main(int argc,char *argv[])
 									/*write function comment into tmpfile*/
 
 									get_func_comment(func_desc,comment_buff,MAX_COMMENT_LEN,comment_char);
-#ifndef NDEBUG
+#ifdef DEBUG
 		printf("function comment start:==============================================\n");
 		printf("%s",comment_buff);
 		printf("==============================================================\n");
@@ -798,7 +803,7 @@ int main(int argc,char *argv[])
 								{
 									/*write function comment into tmpfile*/
 									get_func_comment(func_desc,comment_buff,MAX_COMMENT_LEN,comment_char);
-#ifndef NDEBUG
+#ifdef DEBUG
 		printf("function comment start:==============================================\n");
 		printf("%s",comment_buff);
 		printf("==============================================================\n");
@@ -839,10 +844,11 @@ last_line_type_save:
 						}
 						if(ret >= 0)
 							len = buff_pos - start_pos;
-						else
-							len = strlen(buff+buff_pos+1);
-						assert(len > 0);
-						if(len != fwrite(buff+start_pos,1,len,fptmp))
+						else if(start_pos < MAX_BUFF_LEN) 
+							len = strlen(buff+start_pos);
+						else 
+							len = 0;
+						if(len && len != fwrite(buff+start_pos,1,len,fptmp))
 						{
 							printf("%s:write error.\n",argv[optind+i]);
 							goto CONTINUE;
@@ -871,6 +877,8 @@ last_line_type_save:
 				else if(ret == -2)
 				{
 
+					//update start_pos when buff end
+					start_pos = buff_pos + 1;
 					//write left line into tmp buff
 					if(tmp_buff_pos + read_len - start_pos >= TMP_BUFF_LEN)
 					{
