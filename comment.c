@@ -745,15 +745,11 @@ int main(int argc,char *argv[])
 			while(1)
 			{
 				int ret = get_valid_line(buff,MAX_BUFF_LEN,buff_pos,line_buff,&line_buff_pos);
-				if(ret >= 0 || ret == -3)//success or file end
+				if(ret >= 0)//success or file end
 				{
-					if(ret >= 0 )
-					{
-						start_pos = buff_pos;
-						buff_pos = ret + 1;
-					}
-					else
-						++start_pos;
+					start_pos = buff_pos;
+					buff_pos = ret + 1;
+
 					/*parse line*/
 					/*reset func_desc*/
 					memset(func_desc,0,sizeof(struct _func_desc_t));
@@ -834,8 +830,7 @@ last_line_type_save:
 						if(tmp_buff_pos != 0)
 						{
 							//flush tmp buff first
-							if(ret == MAX_BUFF_LEN)
-								tmp_buff_pos = 0;
+							tmp_buff_pos = 0;
 							len = strlen(tmp_buff);
 							if(len != fwrite(tmp_buff,1,len,fptmp))
 							{
@@ -844,12 +839,10 @@ last_line_type_save:
 							}
 
 						}
-						if(ret >= 0)
-							len = buff_pos - start_pos;
-						else
-							len = strlen(buff+start_pos);
+
+						len = buff_pos - start_pos;
 						/*when tmp_buff contains the last statment and it write already,don't write then*/
-						if( !tmp_buff_pos && len != fwrite(buff+start_pos,1,len,fptmp))
+						if(len != fwrite(buff+start_pos,1,len,fptmp))
 						{
 							printf("%s:write error.\n",argv[optind+i]);
 							goto CONTINUE;
@@ -863,12 +856,12 @@ last_line_type_save:
 						exit(-1);
 					}
 #endif
-					if(ret != MAX_BUFF_LEN)//file end
-					{
-						assert(file_loop == 0);
-						break;
-					}
 
+				}
+				else if(ret == -3)
+				{
+					assert(file_loop == 0);
+					break;
 				}
 				else if(ret == -1)
 				{
