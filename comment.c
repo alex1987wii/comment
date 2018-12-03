@@ -291,7 +291,7 @@ int get_valid_line(const char *buff,int bufsize,int start_pos,char *valid_buf,in
 				}
 				break;
 			case '/':
-				if(scope < SCOPE_DMARK)
+				if(!(scope & (SCOPE_COMMENT_LINE | SCOPE_SMARK | SCOPE_DMARK)))
 				{
 					if(last_char == '*')
 					{
@@ -299,7 +299,7 @@ int get_valid_line(const char *buff,int bufsize,int start_pos,char *valid_buf,in
 							goto parse_err;
 						scope &= ~SCOPE_COMMENT;
 					}
-					else if(last_char == '/' && scope == SCOPE_GLOBAL)
+					else if(!(scope & SCOPE_COMMENT) && last_char == '/')
 					{
 						scope |= SCOPE_COMMENT_LINE;
 						push(stack,COMMENT_LINE);
@@ -307,14 +307,14 @@ int get_valid_line(const char *buff,int bufsize,int start_pos,char *valid_buf,in
 				}
 				break;
 			case '*':
-				if(scope < SCOPE_DMARK && last_char == '/')
+				if(!(scope & (SCOPE_COMMENT_LINE | SCOPE_SMARK | SCOPE_DMARK)) && last_char == '/')
 				{
 					push(stack,COMMENT_LEFT);
 					scope |= SCOPE_COMMENT;
 				}
 				break;
 			case '\"':
-				if(!((scope & SCOPE_COMMENT)||(scope & SCOPE_COMMENT_LINE)))
+				if(!(scope & (SCOPE_COMMENT | SCOPE_COMMENT_LINE | SCOPE_SMARK)))
 				{
 					if(last_char == '\\')
 						break;
@@ -331,7 +331,7 @@ int get_valid_line(const char *buff,int bufsize,int start_pos,char *valid_buf,in
 				}
 				break;
 			case '\'':
-				if(!((scope & SCOPE_COMMENT)||(scope & SCOPE_COMMENT_LINE)))
+				if(!(scope & (SCOPE_COMMENT | SCOPE_COMMENT_LINE | SCOPE_DMARK)))
 				{
 					if(last_char == '\\')
 						break;
@@ -403,6 +403,7 @@ int get_valid_line(const char *buff,int bufsize,int start_pos,char *valid_buf,in
 					pop(stack);
 					last_line_type = 1;
 				}
+				scope &= ~SCOPE_COMMENT_LINE;
 
 				//drop line buff
 				*valid_buf_pos = 0;
@@ -631,6 +632,7 @@ int main(int argc,char *argv[])
     int nr_line = strip_str_by_comma(args_for_l,MAX_LIST,line_list);
     int line_array[MAX_LIST];
     int nr = parse_number(line_array,line_list,nr_line);
+	int tmp_buff_pos;
     if(nr != nr_line)
     {
         printf("Line number error!\n");
@@ -704,7 +706,7 @@ int main(int argc,char *argv[])
 		/*get buff until file end*/
 		int file_loop = 1;
 
-		int tmp_buff_pos = 0;
+		tmp_buff_pos = 0;
 		int len = 0;
 
 		/*write file comment into tmpfile*/
@@ -870,13 +872,19 @@ last_line_type_save:
 				{
 
 					//write left line into tmp buff
+					if(tmp_buff_pos + read_len - start_pos >= TMP_BUFF_LEN)
+					{
+						//we can just write tmp buff into tmpfile,because it can't be a function,no need to add comment before it.
+						tmp_buff_pos = 0;
+						len = strlen(tmp_buff);
+						if(len != fwrite(tmp_buff,1,len,fptmp))
+						{
+							printf("%s: write error.\n",argv[optind+i]);
+							goto CONTINUE;
+						}
+					}
 					memcpy(tmp_buff+tmp_buff_pos,buff+start_pos,read_len - start_pos);
 					tmp_buff_pos += read_len - start_pos;
-					if(tmp_buff_pos >= TMP_BUFF_LEN)
-					{
-						printf("%s:tmp buff overflow.\n",argv[optind+i]);
-						goto CONTINUE;
-					}
 					tmp_buff[tmp_buff_pos] = 0;
 					break;//buff end
 				}
