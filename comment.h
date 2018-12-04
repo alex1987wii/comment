@@ -122,7 +122,7 @@ typedef enum {
 }OPT;
 #define DEFAULT_OPT     OPT_D
 #define OPT_FILTER		(OPT_i | OPT_s | OPT_d | OPT_D)
-#define OPT_OR			(OPT_D | OPT_s)
+#define OPT_OR			(OPT_D | OPT_s | OPT_i | OPT_d)
 #define OPT_NOT			(OPT_i | OPT_d)
 #define OPT_FORCE_O     (OPT_MAX<<1)
 
