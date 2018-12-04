@@ -100,7 +100,9 @@ static inline int strip_str_by_comma(char *str,int argc,char *argv[])
         }
         argv[count++] = str;
         if(count >= argc)
-        break;
+          break;
+        while(isalnum(*str) || *str == '_')
+          ++str;
     }
     return count;
 }
