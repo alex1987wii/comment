@@ -375,9 +375,11 @@ int get_valid_line(const char *buff,int bufsize,int start_pos,char *valid_buf,in
 					--(*valid_buf_pos);
 					goto NEXT2;
 				}
+
+                last_char = '\n';
+
 				if(stack->length == 0)
                 {
-					
 					scope &= ~SCOPE_COMMENT_LINE;
 					if(scope != SCOPE_GLOBAL)
 						goto parse_err;
@@ -392,7 +394,6 @@ int get_valid_line(const char *buff,int bufsize,int start_pos,char *valid_buf,in
 				 */
 				else if(stack->length == 1 && stack->elem[0] == BRACKT1_LEFT)
 				{
-					last_char = '\n';
 					goto NEXT2;
 				}
 
@@ -409,7 +410,6 @@ int get_valid_line(const char *buff,int bufsize,int start_pos,char *valid_buf,in
 				//drop line buff
 				*valid_buf_pos = 0;
 				valid_buf[0] = 0;
-				last_char = '\n';
 				goto NEXT2;
             case '\0':
                 if(stack->length !=0)
@@ -447,16 +447,16 @@ parse_err:
 
 int get_func_comment(const struct _func_desc_t *func_desc,char *buff,int bufsize,int comment_char)
 {
-	snprintf(buff,bufsize,"/************************************************\n**    %cFunction Name : %s\n**    %cReturn Value  : \n",
+	snprintf(buff,bufsize,"/*\n*    %cFunction Name : %s\n*    %cReturn Value  : \n",
 			comment_char,func_desc->parameter[func_desc->func_index],comment_char);
 	int i;
 	int paramters = func_desc->argc - func_desc->func_index - 1;
 	if(paramters == 0)
-		snprintf(buff+strlen(buff),bufsize-strlen(buff),"**    %cParameters    : NULL\n",comment_char);
+		snprintf(buff+strlen(buff),bufsize-strlen(buff),"*    %cParameters    : NULL\n",comment_char);
 	else
 	{
 		int max_word_len = 0;
-		snprintf(buff+strlen(buff),bufsize-strlen(buff),"**    %cParameters    : \n",comment_char);
+		snprintf(buff+strlen(buff),bufsize-strlen(buff),"*    %cParameters    : \n",comment_char);
 		for(i = 0; i < paramters; ++i)
 		{
 			int word_len = strlen(func_desc->parameter[func_desc->func_index+i+1]);
@@ -466,19 +466,19 @@ int get_func_comment(const struct _func_desc_t *func_desc,char *buff,int bufsize
 		for(i = 0; i < paramters; ++i)
 		{
 			snprintf(tmp_buff,256,"%c%s",comment_char,func_desc->parameter[func_desc->func_index+i+1]);
-			snprintf(buff+strlen(buff),bufsize-strlen(buff),"**        %-*s: \n",max_word_len+1,
+			snprintf(buff+strlen(buff),bufsize-strlen(buff),"*        %-*s: \n",max_word_len+1,
 					tmp_buff);
 		}
 
 	}
-	snprintf(buff+strlen(buff),bufsize-strlen(buff),"**    %cDescription   : \n",comment_char);
-	snprintf(buff+strlen(buff),bufsize-strlen(buff),"**    %cHistory       : \n**    %cModify Date   : %s**    %cAuthor        : %s\n************************************************/\n",
+	snprintf(buff+strlen(buff),bufsize-strlen(buff),"*    %cDescription   : \n",comment_char);
+	snprintf(buff+strlen(buff),bufsize-strlen(buff),"*    %cHistory       : \n*    %cModify Date   : %s*    %cAuthor        : %s\n*/\n",
 			comment_char,comment_char,date,comment_char,user);
 	return 1;
 }
 int get_file_comment(const char *filename,char *buff,int bufsize,int comment_char)
 {
-	snprintf(buff,bufsize,"/************************************************\n**    %cCopy Right    : GPL\n**    %cFile Name     : %s\n**    %cAuthor        : %s\n**    %cVersion       : v0.1\n**    %cHistory       : \n**    %cModify Date   : %s**    %cDescription   : \n************************************************/\n",
+	snprintf(buff,bufsize,"/************************************************\n*    %cCopy Right    : GPL\n*    %cFile Name     : %s\n*    %cAuthor        : %s\n*    %cVersion       : v0.1\n*    %cHistory       : \n*    %cModify Date   : %s*    %cDescription   : \n************************************************/\n",
 			comment_char,comment_char,filename,comment_char,user,comment_char,comment_char,comment_char,date,comment_char);
 	return 0;
 
